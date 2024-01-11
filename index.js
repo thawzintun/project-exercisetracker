@@ -17,7 +17,7 @@ const User = mongoose.model("User", userSchema);
 const exerciseScheme = new mongoose.Schema({
     description: String,
     duration: Number,
-    date: String,
+    date: Date,
     user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
 });
 const Exercise = mongoose.model("Exercise", exerciseScheme);
@@ -60,7 +60,7 @@ app.post("/api/users/:_id/exercises", async (req, res) => {
     res.json({
         _id: getExercise.user_id._id,
         username: getExercise.user_id.username,
-        date: getExercise.date,
+        date: getExercise.date.toDateString(),
         duration: getExercise.duration,
         description: getExercise.description,
     });
@@ -68,9 +68,12 @@ app.post("/api/users/:_id/exercises", async (req, res) => {
 
 app.get("/api/users/:_id/logs", async (req, res) => {
     const { _id } = req.params;
-    const getExercise = await Exercise.find({ user_id: _id }).select(
-        "-_id -user_id -__v"
-    );
+    const { fromDate, toDate, limit } = req.query;
+    const getExercise = await Exercise.find({ user_id: _id })
+        .gte("date", new Date(toDate))
+        .lte("date", new Date(toDate))
+        .limit(limit)
+        .select("-_id -user_id -__v");
     const getUser = await User.findById(_id).select("_id username");
     const count = await Exercise.countDocuments({ user_id: _id });
     res.json({
