@@ -17,7 +17,7 @@ const User = mongoose.model("User", userSchema);
 const exerciseScheme = new mongoose.Schema({
     description: String,
     duration: Number,
-    date: Date,
+    date: { type: Date },
     user_id: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
 });
 const Exercise = mongoose.model("Exercise", exerciseScheme);
@@ -50,7 +50,7 @@ app.post("/api/users/:_id/exercises", async (req, res) => {
     const exerciseData = {
         description,
         duration,
-        date: date ? new Date(date).toDateString() : new Date().toDateString(),
+        date: date ? new Date(date) : new Date(),
         user_id: req.params._id,
     };
     const createExercise = await Exercise.create(exerciseData);
@@ -69,18 +69,38 @@ app.post("/api/users/:_id/exercises", async (req, res) => {
 app.get("/api/users/:_id/logs", async (req, res) => {
     const { _id } = req.params;
     const { fromDate, toDate, limit } = req.query;
-    const getExercise = await Exercise.find({ user_id: _id })
-        .gte("date", new Date(toDate))
-        .lte("date", new Date(toDate))
-        .limit(limit)
-        .select("-_id -user_id -__v");
     const getUser = await User.findById(_id).select("_id username");
+    if (!getUser) {
+        res.send("Could not find user");
+    }
+    let dateObj = {};
+    if (fromDate) {
+        dateObj["$gte"] = new Date(fromDate);
+    }
+    if (toDate) {
+        dateObj["$gte"] = new Date(toDate);
+    }
+    let filter = {
+        user_id: _id,
+    };
+    if (fromDate || toDate) {
+        filter.date = dateObj;
+    }
+    const getExercise = await Exercise.find(filter)
+        .limit(+limit ?? 500)
+        .select("-_id -user_id -__v")
+        .exec();
+    const logs = getExercise.map((e) => ({
+        description: e.description,
+        duration: e.duration,
+        date: e.date.toDateString(),
+    }));
     const count = await Exercise.countDocuments({ user_id: _id });
     res.json({
         _id: getUser._id,
         username: getUser.username,
         count,
-        log: getExercise,
+        log: logs,
     });
 });
 
